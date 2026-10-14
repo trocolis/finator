@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Parent pom do Finator.
+
+    Centraliza tudo o que precisa ser igual em todos os serviços (ADR-0001):
+    versão do Java, versão do Quarkus (via BOM) e configuração dos plugins.
+    Cada módulo herda daqui e declara apenas as próprias dependências.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>dev.trocolis.finator</groupId>
+    <artifactId>finator-parent</artifactId>
+    <!-- Versionamento RELEASE.FEATURE.HOTFIX; todos os módulos compartilham a mesma versão -->
+    <version>0.1.0</version>
+    <packaging>pom</packaging>
+
+    <name>Finator</name>
+    <description>API de gestão financeira pessoal</description>
+
+    <modules>
+        <module>finator-commons</module>
+        <module>identity-service</module>
+        <module>ledger-service</module>
+    </modules>
+
+    <properties>
+        <maven.compiler.release>25</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+
+        <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
+        <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
+        <quarkus.platform.version>3.40.1</quarkus.platform.version>
+
+        <compiler-plugin.version>3.15.0</compiler-plugin.version>
+        <surefire-plugin.version>3.5.6</surefire-plugin.version>
+        <jandex-plugin.version>3.6.0</jandex-plugin.version>
+        <!-- O BOM do Quarkus não gerencia o AssertJ, então a versão fica aqui -->
+        <assertj.version>3.27.7</assertj.version>
+
+        <!--
+            Testes marcados com @Tag("exercise") são exercícios ainda não resolvidos.
+            Ficam fora do build padrão para não quebrar a CI; rode-os com -Pexercises.
+        -->
+        <surefire.excludedGroups>exercise</surefire.excludedGroups>
+        <surefire.groups/>
+
+        <!-- Testes de integração em binário nativo ficam desligados por padrão -->
+        <skipITs>true</skipITs>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- O BOM do Quarkus fixa versões compatíveis entre si para todas as extensões -->
+            <dependency>
+                <groupId>${quarkus.platform.group-id}</groupId>
+                <artifactId>${quarkus.platform.artifact-id}</artifactId>
+                <version>${quarkus.platform.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>dev.trocolis.finator</groupId>
+                <artifactId>finator-commons</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.assertj</groupId>
+                <artifactId>assertj-core</artifactId>
+                <version>${assertj.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>${quarkus.platform.group-id}</groupId>
+                    <artifactId>quarkus-maven-plugin</artifactId>
+                    <version>${quarkus.platform.version}</version>
+                    <extensions>true</extensions>
+                </plugin>
+                <plugin>
+                    <!--
+                        Gera o índice Jandex de bibliotecas. Sem ele, o Quarkus não
+                        enxerga beans CDI e exception mappers declarados num jar comum.
+                    -->
+                    <groupId>io.smallrye</groupId>
+                    <artifactId>jandex-maven-plugin</artifactId>
+                    <version>${jandex-plugin.version}</version>
+                    <executions>
+                        <execution>
+                            <id>make-index</id>
+                            <goals>
+                                <goal>jandex</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+                <plugin>
+                    <artifactId>maven-failsafe-plugin</artifactId>
+                    <version>${surefire-plugin.version}</version>
+                    <executions>
+                        <execution>
+                            <goals>
+                                <goal>integration-test</goal>
+                                <goal>verify</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                    <configuration>
+                        <systemPropertyVariables>
+                            <native.image.path>${project.build.directory}/${project.build.finalName}-runner</native.image.path>
+                            <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
+                            <maven.home>${maven.home}</maven.home>
+                        </systemPropertyVariables>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+
+        <plugins>
+            <plugin>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>${compiler-plugin.version}</version>
+                <configuration>
+                    <!-- Mantém o nome dos parâmetros no bytecode (usado pelo REST e pela validação) -->
+                    <parameters>true</parameters>
+                </configuration>
+            </plugin>
+            <plugin>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>${surefire-plugin.version}</version>
+                <configuration>
+                    <groups>${surefire.groups}</groups>
+                    <excludedGroups>${surefire.excludedGroups}</excludedGroups>
+                    <systemPropertyVariables>
+                        <!-- O Quarkus usa o JBoss LogManager no lugar do java.util.logging padrão -->
+                        <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
+                        <maven.home>${maven.home}</maven.home>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+    <profiles>
+        <!-- ./mvnw test -Pexercises : roda somente os exercícios -->
+        <profile>
+            <id>exercises</id>
+            <properties>
+                <surefire.groups>exercise</surefire.groups>
+                <surefire.excludedGroups/>
+            </properties>
+        </profile>
+    </profiles>
+</project>
