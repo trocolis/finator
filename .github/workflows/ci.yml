@@ -1,0 +1,46 @@
+# =============================================================================
+# Integração contínua: compila e testa todos os módulos a cada push e PR.
+#
+# Os runners do GitHub têm Docker, então os testes de integração com
+# Dev Services (PostgreSQL em container) rodam aqui sem configuração extra.
+# =============================================================================
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Um push novo no mesmo PR cancela a execução anterior, que ficou obsoleta
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Princípio do menor privilégio: o workflow só precisa ler o código
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Java 25
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Build e testes
+        run: ./mvnw -B verify
+
+      # Em caso de falha, guarda os relatórios para investigar sem reproduzir local
+      - name: Relatórios de teste
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: surefire-reports
+          path: '**/target/surefire-reports/'
