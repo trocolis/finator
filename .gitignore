@@ -1,0 +1,24 @@
+# Build do Maven
+target/
+!.mvn/wrapper/maven-wrapper.jar
+
+# IDEs
+.idea/
+*.iml
+.vscode/
+.project
+.classpath
+.settings/
+
+# Variáveis de ambiente locais: contêm endereços e senhas, nunca versionar
+.env
+*.env.local
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+
+# Logs e dumps de diagnóstico (heap/thread dumps, JFR)
+*.log
+*.hprof
+*.jfr
