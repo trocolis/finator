@@ -1,0 +1,33 @@
+# =============================================================================
+# Imagem JVM do identity-service.
+#
+# A imagem base é multi-arquitetura (amd64 e arm64), então o mesmo Dockerfile
+# serve para a máquina de desenvolvimento e para servidores ARM.
+#
+# Build (a partir da pasta identity-service, depois de ./mvnw package):
+#   docker build -f src/main/docker/Dockerfile.jvm -t finator/identity-service .
+# =============================================================================
+FROM eclipse-temurin:25-jre
+
+# Usuário sem privilégios: se a aplicação for comprometida, o invasor não é root
+RUN groupadd --system finator && useradd --system --gid finator --no-create-home finator
+
+WORKDIR /deployments
+
+# O "fast-jar" do Quarkus separa as dependências (lib/), que mudam pouco, do código
+# da aplicação (app/). Copiar em camadas separadas aproveita o cache do Docker.
+COPY --chown=finator:finator target/quarkus-app/lib/ lib/
+COPY --chown=finator:finator target/quarkus-app/*.jar ./
+COPY --chown=finator:finator target/quarkus-app/app/ app/
+COPY --chown=finator:finator target/quarkus-app/quarkus/ quarkus/
+
+USER finator
+EXPOSE 8081
+
+# MaxRAMPercentage faz o heap respeitar o limite de memória do container,
+# em vez da memória total da máquina.
+ENV JAVA_OPTS="-XX:MaxRAMPercentage=75 -Djava.util.logging.manager=org.jboss.logmanager.LogManager"
+
+# "exec" troca o shell pelo java: o processo recebe o SIGTERM direto e faz
+# o desligamento gracioso (termina as requisições em andamento).
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar quarkus-run.jar"]
