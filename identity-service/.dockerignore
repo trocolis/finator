@@ -1,0 +1,3 @@
+# Envia ao Docker apenas o resultado do build
+*
+!target/quarkus-app/
